@@ -8,7 +8,7 @@
 
 Name: keepalived
 Summary: High Availability monitor built upon LVS, VRRP and service pollers
-Version: 1.3.5
+Version: 1.3.6
 Release: 1%{?dist}
 License: GPLv2+
 URL: http://www.keepalived.org/
@@ -83,7 +83,7 @@ rm -rf %{buildroot}
 %attr(0755,root,root) %{_sbindir}/keepalived
 %config(noreplace) %attr(0644,root,root) %{_sysconfdir}/sysconfig/keepalived
 %config(noreplace) %attr(0644,root,root) %{_sysconfdir}/keepalived/keepalived.conf
-%doc AUTHOR ChangeLog CONTRIBUTORS COPYING README TODO
+%doc AUTHOR ChangeLog CONTRIBUTORS COPYING README.md TODO
 %doc doc/keepalived.conf.SYNOPSIS doc/samples/keepalived.conf.*
 %dir %{_sysconfdir}/keepalived/
 %dir %{_libexecdir}/keepalived/
@@ -99,6 +99,9 @@ rm -rf %{buildroot}
 %{_mandir}/man8/keepalived.8*
 
 %changelog
+* Tue Sep 12 2017 Hiroaki Nakamura <hnakamur@gmail.com> - 1.3.6-1
+- Update to 1.3.6
+
 * Sun Mar 26 2017 Ryan O'Hara <rohara@redhat.com> - 1.3.5-1
 - Update to 1.3.5 (#1422063)
 
