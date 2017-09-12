@@ -7,19 +7,15 @@
 %global _hardened_build 1
 
 Name: keepalived
-Summary: Load balancer and high availability service
-Version: 1.2.13
-Release: 9%{?dist}
+Summary: High Availability monitor built upon LVS, VRRP and service pollers
+Version: 1.3.6
+Release: 1%{?dist}
 License: GPLv2+
 URL: http://www.keepalived.org/
 Group: System Environment/Daemons
 
 Source0: http://www.keepalived.org/software/keepalived-%{version}.tar.gz
 Source1: keepalived.service
-
-Patch0: bz1085535-keepalived-man-snmp.patch
-Patch1: bz1181107-global-data-after-parse.patch
-Patch2: bz1429880-optimize-close-syscalls.patch
 
 Requires(post): systemd
 Requires(preun): systemd
@@ -32,50 +28,46 @@ BuildRequires: net-snmp-devel
 BuildRequires: systemd-units
 BuildRequires: openssl-devel
 BuildRequires: libnl3-devel
-BuildRequires: kernel-devel
-BuildRequires: popt-devel
+BuildRequires: ipset-devel
+BuildRequires: iptables-devel
+BuildRequires: libnfnetlink-devel
 
 %description
 Keepalived provides simple and robust facilities for load balancing
-and high availability.  The load balancing framework relies on the
-well-known and widely used Linux Virtual Server (IPVS) kernel module
-providing layer-4 (transport layer) load balancing.  Keepalived
-implements a set of checkers to dynamically and adaptively maintain
-and manage a load balanced server pool according their health.
-Keepalived also implements the Virtual Router Redundancy Protocol
-(VRRPv2) to achieve high availability with director failover.
+and high availability to Linux system and Linux based infrastructures.
+The load balancing framework relies on well-known and widely used
+Linux Virtual Server (IPVS) kernel module providing Layer4 load
+balancing. Keepalived implements a set of checkers to dynamically and
+adaptively maintain and manage load-balanced server pool according
+their health. High availability is achieved by VRRP protocol. VRRP is
+a fundamental brick for router failover. In addition, keepalived
+implements a set of hooks to the VRRP finite state machine providing
+low-level and high-speed protocol interactions. Keepalived frameworks
+can be used independently or all together to provide resilient
+infrastructures.
 
 %prep
 %setup -q
-%patch0 -p1
-%patch1 -p1
-%patch2 -p1
 
 %build
 %configure \
     %{?with_debug:--enable-debug} \
     %{?with_profile:--enable-profile} \
     %{!?with_vrrp:--disable-vrrp} \
-    %{?with_snmp:--enable-snmp} \
+    %{?with_snmp:--enable-snmp --enable-snmp-rfc} \
     %{?with_sha1:--enable-sha1}
 %{__make} %{?_smp_mflags} STRIP=/bin/true
 
 %install
-%{__rm} -rf %{buildroot}
-%{__rm} -rf doc/samples/*.pem
-%{__make} install DESTDIR=%{buildroot}
-%{__rm} -rf %{buildroot}%{_initrddir}/
-%{__rm} -rf %{buildroot}%{_sysconfdir}/keepalived/samples/
+rm -rf %{buildroot}
+make install DESTDIR=%{buildroot}
+rm -rf %{buildroot}%{_initrddir}/
+rm -rf %{buildroot}%{_sysconfdir}/keepalived/samples/
 %{__install} -p -D -m 0644 %{SOURCE1} %{buildroot}%{_unitdir}/keepalived.service
-%{__mkdir_p} %{buildroot}%{_libexecdir}/keepalived
-
-%if %{with snmp}
-%{__mkdir_p} %{buildroot}%{_datadir}/snmp/mibs/
-%{__install} -p -D -m 0644 doc/KEEPALIVED-MIB %{buildroot}%{_datadir}/snmp/mibs/KEEPALIVED-MIB.txt
-%endif
+mkdir -p %{buildroot}%{_libexecdir}/keepalived
 
 %clean
-%{__rm} -rf %{buildroot}
+rm -rf %{buildroot}
 
 %post
 %systemd_post keepalived.service
@@ -88,61 +80,147 @@ Keepalived also implements the Virtual Router Redundancy Protocol
 
 %files
 %defattr(-,root,root,-)
-%doc AUTHOR ChangeLog CONTRIBUTORS COPYING README TODO VERSION
-%doc doc/keepalived.conf.SYNOPSIS doc/NOTE_vrrp_vmac.txt doc/samples/
+%attr(0755,root,root) %{_sbindir}/keepalived
+%config(noreplace) %attr(0644,root,root) %{_sysconfdir}/sysconfig/keepalived
+%config(noreplace) %attr(0644,root,root) %{_sysconfdir}/keepalived/keepalived.conf
+%doc AUTHOR ChangeLog CONTRIBUTORS COPYING README.md TODO
+%doc doc/keepalived.conf.SYNOPSIS doc/samples/keepalived.conf.*
 %dir %{_sysconfdir}/keepalived/
 %dir %{_libexecdir}/keepalived/
-%attr(0644,root,root) %config(noreplace) %{_sysconfdir}/keepalived/keepalived.conf
-%attr(0644,root,root) %config(noreplace) %{_sysconfdir}/sysconfig/keepalived
-%{_unitdir}/keepalived.service
 %if %{with snmp}
 %{_datadir}/snmp/mibs/KEEPALIVED-MIB.txt
+%{_datadir}/snmp/mibs/VRRP-MIB.txt
+%{_datadir}/snmp/mibs/VRRPv3-MIB.txt
 %endif
-%attr(0755,root,root) %{_bindir}/genhash
-%attr(0755,root,root) %{_sbindir}/keepalived
+%{_bindir}/genhash
+%{_unitdir}/keepalived.service
 %{_mandir}/man1/genhash.1*
 %{_mandir}/man5/keepalived.conf.5*
 %{_mandir}/man8/keepalived.8*
 
 %changelog
-* Mon Mar 27 2017 Ryan O'Hara <rohara@redhat.com> - 1.2.13-9
-- Fix high number of close system calls (#1429880)
+* Tue Sep 12 2017 Hiroaki Nakamura <hnakamur@gmail.com> - 1.3.6-1
+- Update to 1.3.6
 
-* Fri Jul 01 2016 Ryan O'Hara <rohara@redhat.com> - 1.2.13-8
-- Add PIDFile to systemd unit file (#1336190)
+* Sun Mar 26 2017 Ryan O'Hara <rohara@redhat.com> - 1.3.5-1
+- Update to 1.3.5 (#1422063)
 
-* Thu Jun 25 2015 Ryan O'Hara <rohara@redhat.com> - 1.2.13-7
-- Set global default values after parsing config file (#1181107)
+* Sun Feb 05 2017 Kalev Lember <klember@redhat.com> - 1.3.2-2
+- Rebuilt for libxtables soname bump
 
-* Tue Nov 18 2014 Ryan O'Hara <rohara@redhat.com> - 1.2.13-6
-- Fix typo in changelog
+* Mon Nov 28 2016 Ryan O'Hara <rohara@redhat.com> - 1.3.2-1
+- Update to 1.3.2 (#1396857)
 
-* Mon Nov 10 2014 Ryan O'Hara <rohara@redhat.com> - 1.2.13-5
-- Bump release number (#1158114)
+* Fri Sep 16 2016 Ryan O'Hara <rohara@redhat.com> - 1.2.24-3
+- Add BuildRequires for iptables-devel (#1361686)
 
-* Thu Nov 06 2014 Ryan O'Hara <rohara@redhat.com> - 1.2.13-4
-- Create /usr/libexec/keepalived directory (#1158114)
+* Fri Sep 16 2016 Ryan O'Hara <rohara@redhat.com> - 1.2.24-2
+- Fix configure script
 
-* Tue Sep 30 2014 Ryan O'Hara <rohara@redhat.com> - 1.2.13-3
-- Minor spec file modifications (#1067693, #1067145)
+* Thu Sep 15 2016 Ryan O'Hara <rohara@redhat.com> - 1.2.24-1
+- Update to 1.2.24 (#1376254)
 
-* Tue Sep 30 2014 Ryan O'Hara <rohara@redhat.com> - 1.2.13-2
-- Add SNMP subsystem option to man page (#1085535)
+* Wed Jul 13 2016 Ryan O'Hara <rohara@redhat.com> - 1.2.23-1
+- Update to 1.2.23 (#1354696)
 
-* Thu Aug 07 2014 Ryan O'Hara <rohara@redhat.com> - 1.2.13-1
-- Rebase to upstream version 1.2.13 (#1111716)
+* Wed Jun 15 2016 Ryan O'Hara <rohara@redhat.com> - 1.2.22-1
+- Update to 1.2.22 (#1346509)
 
-* Fri Jan 24 2014 Daniel Mach <dmach@redhat.com> - 1.2.10-2
-- Mass rebuild 2014-01-24
+* Tue Jun 14 2016 Ryan O'Hara <rohara@redhat.com> - 1.2.21-3
+- Remove net-snmp U64 typedef
 
-* Tue Jan 14 2014 Ryan O'Hara <rohara@redhat.com> - 1.2.10-1
-- Rebase to upstream version 1.2.10 (#1052359)
+* Fri Jun 03 2016 Ryan O'Hara <rohara@redhat.com> - 1.2.21-2
+- Remove unnecessary BuildRequires (#1327873)
 
-* Fri Dec 27 2013 Daniel Mach <dmach@redhat.com> - 1.2.8-2
-- Mass rebuild 2013-12-27
+* Fri Jun 03 2016 Ryan O'Hara <rohara@redhat.com> - 1.2.21-1
+- Update to 1.2.21 (#1341372)
+
+* Sun Apr 10 2016 Ryan O'Hara <rohara@redhat.com> - 1.2.20-2
+- Install VRRP MIB
+
+* Mon Apr 04 2016 Ryan O'Hara <rohara@redhat.com> - 1.2.20-1
+- Update to 1.2.20 (#1323526)
+
+* Thu Feb 04 2016 Fedora Release Engineering <releng@fedoraproject.org> - 1.2.19-4
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_24_Mass_Rebuild
+
+* Sat Jan 23 2016 Ryan O'Hara <rohara@redhat.com> - 1.2.19-3
+- Add PIDFile to systemd unit file (#1280437)
+
+* Wed Jul 29 2015 Zbigniew Jędrzejewski-Szmek <zbyszek@in.waw.pl> - 1.2.19-2
+- Rebuilt for rpm 4.12.90
+
+* Wed Jul 15 2015 Ryan O'Hara <rohara@redhat.com> - 1.2.19-1
+- Update to 1.2.19 (#1240863)
+
+* Wed Jul 01 2015 Ryan O'Hara <rohara@redhat.com> - 1.2.18-1
+- Update to 1.2.18 (#1237377)
+
+* Tue Jun 23 2015 Ryan O'Hara <rohara@redhat.com> - 1.2.17-5
+- Revert patch that changed VRRP notify scripts to list (#1232073)
+
+* Wed Jun 17 2015 Ryan O'Hara <rohara@redhat.com> - 1.2.17-4
+- Fix multiple VRRP instances with same interface (#1232408)
+
+* Wed Jun 17 2015 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 1.2.17-3
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_23_Mass_Rebuild
+
+* Mon Jun 01 2015 Ryan O'Hara <rohara@redhat.com> - 1.2.17-2
+- Add VRRP MIB file
+
+* Mon Jun 01 2015 Ryan O'Hara <rohara@redhat.com> - 1.2.17-1
+- Update to 1.2.17
+
+* Wed Apr 01 2015 Ryan O'Hara <rohara@redhat.com> - 1.2.16-1
+- Update to 1.2.16
+
+* Wed Mar 18 2015 Ryan O'Hara <rohara@redhat.com> - 1.2.15-3
+- Revert previous preempt extension (#1202584)
+
+* Tue Jan 13 2015 Ryan O'Hara <rohara@redhat.com> - 1.2.15-2
+- Depend on network-online.target systemd unit (#1181097)
+
+* Tue Dec 23 2014 Ryan O'Hara <rohara@redhat.com> - 1.2.15-1
+- Update to 1.2.15
+
+* Tue Dec 16 2014 Ryan O'Hara <rohara@redhat.com> - 1.2.14-1
+- Update to 1.2.14
+
+* Tue Oct 28 2014 Ryan O'Hara <rohara@redhat.com> - 1.2.13-4
+- Create /usr/libexec/keepalived directory (#1158113)
+
+* Sat Aug 16 2014 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 1.2.13-3
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_21_22_Mass_Rebuild
+
+* Sun Jun 08 2014 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 1.2.13-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_21_Mass_Rebuild
+
+* Tue May 13 2014 Ryan O'Hara <rohara@redhat.com> - 1.2.13-1
+- Update to 1.2.13
+
+* Mon Feb 10 2014 Ryan O'Hara <rohara@redhat.com> - 1.2.12-1
+- Update to 1.2.12
+
+* Mon Feb 03 2014 Ryan O'Hara <rohara@redhat.com> - 1.2.11-1
+- Update to 1.2.11
+
+* Mon Jan 13 2014 Ryan O'Hara <rohara@redhat.com> - 1.2.10-1
+- Update to 1.2.10
+
+* Mon Nov 11 2013 Ryan O'Hara <rohara@redhat.com> - 1.2.9-1
+- Update to 1.2.9.
+
+* Thu Sep 19 2013 Ryan O'Hara <rohara@redhat.com> - 1.2.8-2
+- Bump release and rebuild.
 
 * Thu Sep 05 2013 Ryan O'Hara <rohara@redhat.com> - 1.2.8-1
 - Update to 1.2.8.
+
+* Mon Aug 19 2013 Ryan O'Hara <rohara@redhat.com> - 1.2.7-10
+- Add To header for SMTP alerts (#967641)
+
+* Sat Aug 03 2013 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 1.2.7-9
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_20_Mass_Rebuild
 
 * Mon Jul 22 2013 Ryan O'Hara <rohara@redhat.com> - 1.2.7-8
 - Fix macro in keepalived.conf.5 man page.
@@ -206,7 +284,7 @@ Keepalived also implements the Virtual Router Redundancy Protocol
 - convert to systemd
 - fix ip_vs.h path searching in configure
 
-* Sat Jul 23 2011 Matthias Saou <http://freshrpms.net/> 1.2.2-2
+* Tue Jul 12 2011 Matthias Saou <http://freshrpms.net/> 1.2.2-2
 - Build against libnl for Fedora. RHEL's libnl is too old.
 
 * Sat May 21 2011 Matthias Saou <http://freshrpms.net/> 1.2.2-1
