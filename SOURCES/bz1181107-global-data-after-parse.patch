@@ -1,0 +1,113 @@
+From 87088c1751b5788a30062f55a1b585c4eb5db5bf Mon Sep 17 00:00:00 2001
+From: Ryan O'Hara <rohara@redhat.com>
+Date: Thu, 14 May 2015 12:03:33 -0500
+Subject: [PATCH] Set global data default values after parsing config file
+
+This patch will defer setting the global data default values until
+after the config file has been parsed. This will potentially avoid two
+calls to getaddrinfo. For example, if the router_id and/or email_from
+parameters are set in the config file, there is no need to call
+getaddrinfo twice in order to set a default value. Instead, this patch
+will check to see if they values are unset after parsing the config
+file. Note that email_from and smtp_connection_to are only set to a
+default value if they are unitialized and smtp_server is specified.
+---
+ keepalived/check/check_daemon.c  |  1 +
+ keepalived/core/global_data.c    | 32 +++++++++++++++++++-------------
+ keepalived/include/global_data.h |  1 +
+ keepalived/vrrp/vrrp_daemon.c    |  1 +
+ 4 files changed, 22 insertions(+), 13 deletions(-)
+
+diff --git a/keepalived/check/check_daemon.c b/keepalived/check/check_daemon.c
+index 240ad00..3ea199e 100644
+--- a/keepalived/check/check_daemon.c
++++ b/keepalived/check/check_daemon.c
+@@ -112,6 +112,7 @@ start_check(void)
+ 		stop_check();
+ 		return;
+ 	}
++	init_global_data(global_data);
+ 
+ 	/* Post initializations */
+ 	log_message(LOG_INFO, "Configuration is using : %lu Bytes", mem_allocated);
+diff --git a/keepalived/core/global_data.c b/keepalived/core/global_data.c
+index 2ef93ac..52bbee1 100644
+--- a/keepalived/core/global_data.c
++++ b/keepalived/core/global_data.c
+@@ -88,18 +88,6 @@ set_default_mcast_group(data_t * data)
+ 	inet_stosockaddr("ff02::12", 0, &data->vrrp_mcast_group6);
+ }
+ 
+-static void
+-set_default_values(data_t * data)
+-{
+-	/* No global data so don't default */
+-	if (!data)
+-		return;
+-	set_default_router_id(data);
+-	set_default_smtp_connection_timeout(data);
+-	set_default_email_from(data);
+-	set_default_mcast_group(data);
+-}
+-
+ /* email facility functions */
+ static void
+ free_email(void *data)
+@@ -134,11 +122,29 @@ alloc_global_data(void)
+ 	new = (data_t *) MALLOC(sizeof(data_t));
+ 	new->email = alloc_list(free_email, dump_email);
+ 
+-	set_default_values(new);
++	set_default_mcast_group(new);
++
+ 	return new;
+ }
+ 
+ void
++init_global_data(data_t * data)
++{
++	if (!data->router_id) {
++		set_default_router_id(data);
++	}
++
++	if (data->smtp_server.ss_family) {
++		if (!data->smtp_connection_to) {
++			set_default_smtp_connection_timeout(data);
++		}
++		if (!data->email_from) {
++			set_default_email_from(data);
++		}
++	}
++}
++
++void
+ free_global_data(data_t * data)
+ {
+ 	free_list(data->email);
+diff --git a/keepalived/include/global_data.h b/keepalived/include/global_data.h
+index 896480c..3e429da 100644
+--- a/keepalived/include/global_data.h
++++ b/keepalived/include/global_data.h
+@@ -64,6 +64,7 @@ extern data_t *global_data; /* Global configuration data */
+ /* Prototypes */
+ extern void alloc_email(char *);
+ extern data_t *alloc_global_data(void);
++extern void init_global_data(data_t *);
+ extern void free_global_data(data_t *);
+ extern void dump_global_data(data_t *);
+ 
+diff --git a/keepalived/vrrp/vrrp_daemon.c b/keepalived/vrrp/vrrp_daemon.c
+index 755741b..b6369de 100644
+--- a/keepalived/vrrp/vrrp_daemon.c
++++ b/keepalived/vrrp/vrrp_daemon.c
+@@ -123,6 +123,7 @@ start_vrrp(void)
+ 		stop_vrrp();
+ 		return;
+ 	}
++	init_global_data(global_data);
+ 
+ #ifdef _WITH_LVS_
+ 	if (vrrp_ipvs_needed()) {
+-- 
+1.9.3
+

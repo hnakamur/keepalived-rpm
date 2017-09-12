@@ -1,0 +1,329 @@
+diff --git a/configure b/configure
+index dcb9f06..bdc7ba7 100755
+--- a/configure
++++ b/configure
+@@ -4753,7 +4753,7 @@ cat >>confdefs.h <<_ACEOF
+ _ACEOF
+ 
+ 
+-for ac_func in gettimeofday select socket strerror strtol uname
++for ac_func in gettimeofday select socket strerror strtol uname pipe2
+ do :
+   as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
+ ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
+diff --git a/configure.in b/configure.in
+index 8aba44a..808401c 100644
+--- a/configure.in
++++ b/configure.in
+@@ -303,7 +303,7 @@ dnl ----[ Checks for library functions ]----
+ AC_PROG_GCC_TRADITIONAL
+ AC_FUNC_MEMCMP
+ AC_TYPE_SIGNAL
+-AC_CHECK_FUNCS(gettimeofday select socket strerror strtol uname)
++AC_CHECK_FUNCS(gettimeofday select socket strerror strtol uname pipe2)
+ 
+ dnl ----[ Process output target ]----
+ OUTPUT_TARGET="$OUTPUT_TARGET keepalived/Makefile lib/Makefile"
+diff --git a/genhash/layer4.c b/genhash/layer4.c
+index ba7b05b..bdf3580 100644
+--- a/genhash/layer4.c
++++ b/genhash/layer4.c
+@@ -231,18 +231,18 @@ tcp_connect_thread(thread_t * thread)
+ 
+ 	if(req->dst){
+ 		if(req->dst->ai_family == AF_INET6) {
+-			if ((sock_obj->fd = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP)) == -1) {
++			if ((sock_obj->fd = socket(AF_INET6, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP)) == -1) {
+ 				DBG("WEB connection fail to create socket.\n");
+ 				return 0;
+ 			}
+ 		} else {
+-			if ((sock_obj->fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
++			if ((sock_obj->fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP)) == -1) {
+ 				DBG("WEB connection fail to create socket.\n");
+ 				return 0;
+ 			}
+ 		}
+ 	} else {
+-		if ((sock_obj->fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
++		if ((sock_obj->fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP)) == -1) {
+ 			DBG("WEB connection fail to create socket.\n");
+ 			return 0;
+ 		}
+diff --git a/keepalived/check/check_http.c b/keepalived/check/check_http.c
+index 18431f9..830f05b 100644
+--- a/keepalived/check/check_http.c
++++ b/keepalived/check/check_http.c
+@@ -869,7 +869,7 @@ http_connect_thread(thread_t * thread)
+ 	}
+ 
+ 	/* Create the socket */
+-	if ((fd = socket(co->dst.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
++	if ((fd = socket(co->dst.ss_family, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP)) == -1) {
+ 		log_message(LOG_INFO, "WEB connection fail to create socket. Rescheduling.");
+ 		thread_add_timer(thread->master, http_connect_thread, checker,
+ 				checker->vs->delay_loop);
+diff --git a/keepalived/check/check_misc.c b/keepalived/check/check_misc.c
+index 53e08e9..1f8ad19 100644
+--- a/keepalived/check/check_misc.c
++++ b/keepalived/check/check_misc.c
+@@ -150,7 +150,6 @@ misc_check_thread(thread_t * thread)
+ 
+ 	/* Child part */
+ 	signal_handler_destroy();
+-	closeall(0);
+ 
+ 	open("/dev/null", O_RDWR);
+ 	ret = dup(0);
+diff --git a/keepalived/check/check_smtp.c b/keepalived/check/check_smtp.c
+index a52b755..1baaacf 100644
+--- a/keepalived/check/check_smtp.c
++++ b/keepalived/check/check_smtp.c
+@@ -774,7 +774,7 @@ smtp_connect_thread(thread_t *thread)
+ 	smtp_host = smtp_checker->host_ptr;
+ 
+ 	/* Create the socket, failling here should be an oddity */
+-	if ((sd = socket(smtp_host->dst.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
++	if ((sd = socket(smtp_host->dst.ss_family, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP)) == -1) {
+ 		log_message(LOG_INFO, "SMTP_CHECK connection failed to create socket. Rescheduling.");
+ 		thread_add_timer(thread->master, smtp_connect_thread, checker,
+ 				 checker->vs->delay_loop);
+diff --git a/keepalived/check/check_ssl.c b/keepalived/check/check_ssl.c
+index aa19011..2035a67 100644
+--- a/keepalived/check/check_ssl.c
++++ b/keepalived/check/check_ssl.c
+@@ -199,8 +199,11 @@ ssl_connect(thread_t * thread, int new_req)
+ 
+ 	/* First round, create SSL context */
+ 	if (new_req) {
++		int bio_fd;
+ 		req->ssl = SSL_new(check_data->ssl->ctx);
+ 		req->bio = BIO_new_socket(thread->u.fd, BIO_NOCLOSE);
++		BIO_get_fd(req->bio, &bio_fd);
++		fcntl(bio_fd, F_SETFD, fcntl(bio_fd, F_GETFD) | FD_CLOEXEC);
+ 		SSL_set_bio(req->ssl, req->bio, req->bio);
+ 	}
+ 
+diff --git a/keepalived/check/check_tcp.c b/keepalived/check/check_tcp.c
+index b941ab2..c595935 100644
+--- a/keepalived/check/check_tcp.c
++++ b/keepalived/check/check_tcp.c
+@@ -131,7 +131,7 @@ tcp_connect_thread(thread_t * thread)
+ 		return 0;
+ 	}
+ 
+-	if ((fd = socket(co->dst.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
++	if ((fd = socket(co->dst.ss_family, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP)) == -1) {
+ 		log_message(LOG_INFO, "TCP connect fail to create socket. Rescheduling.");
+ 		thread_add_timer(thread->master, tcp_connect_thread, checker,
+ 				checker->vs->delay_loop);
+diff --git a/keepalived/core/smtp.c b/keepalived/core/smtp.c
+index 6b1cf7e..34bb126 100644
+--- a/keepalived/core/smtp.c
++++ b/keepalived/core/smtp.c
+@@ -560,7 +560,7 @@ smtp_connect(smtp_t * smtp)
+ {
+ 	enum connect_result status;
+ 
+-	if ((smtp->fd = socket(global_data->smtp_server.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
++	if ((smtp->fd = socket(global_data->smtp_server.ss_family, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP)) == -1) {
+ 		DBG("SMTP connect fail to create socket.");
+ 		free_smtp_all(smtp);
+ 		return;
+diff --git a/keepalived/libipvs-2.4/libipvs.c b/keepalived/libipvs-2.4/libipvs.c
+index be0329e..ff95e8c 100644
+--- a/keepalived/libipvs-2.4/libipvs.c
++++ b/keepalived/libipvs-2.4/libipvs.c
+@@ -35,7 +35,7 @@ int ipvs_init(void)
+ 	socklen_t len;
+ 
+ 	len = sizeof(ipvs_info);
+-	if ((sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)) == -1)
++	if ((sockfd = socket(AF_INET, SOCK_RAW | SOCK_CLOEXEC, IPPROTO_RAW)) == -1)
+ 		return -1;
+ 
+ 	ipvs_cmd = GET_CMD(IP_VS_SO_GET_INFO);
+diff --git a/keepalived/vrrp/vrrp.c b/keepalived/vrrp/vrrp.c
+index 2d41ae2..0133ff5 100644
+--- a/keepalived/vrrp/vrrp.c
++++ b/keepalived/vrrp/vrrp.c
+@@ -1073,7 +1073,7 @@ open_vrrp_send_socket(sa_family_t family, int proto, int idx, int unicast)
+ 	ifp = if_get_by_ifindex(idx);
+ 
+ 	/* Create and init socket descriptor */
+-	fd = socket(family, SOCK_RAW, proto);
++	fd = socket(family, SOCK_RAW | SOCK_CLOEXEC, proto);
+ 	if (fd < 0) {
+ 		log_message(LOG_INFO, "cant open raw socket. errno=%d", errno);
+ 		return -1;
+@@ -1119,7 +1119,7 @@ open_vrrp_socket(sa_family_t family, int proto, int idx, int unicast)
+ 	ifp = if_get_by_ifindex(idx);
+ 
+ 	/* open the socket */
+-	fd = socket(family, SOCK_RAW, proto);
++	fd = socket(family, SOCK_RAW | SOCK_CLOEXEC, proto);
+ 	if (fd < 0) {
+ 		int err = errno;
+ 		log_message(LOG_INFO, "cant open raw socket. errno=%d", err);
+diff --git a/keepalived/vrrp/vrrp_arp.c b/keepalived/vrrp/vrrp_arp.c
+index e53b9d7..58116a9 100644
+--- a/keepalived/vrrp/vrrp_arp.c
++++ b/keepalived/vrrp/vrrp_arp.c
+@@ -98,7 +98,7 @@ void gratuitous_arp_init(void)
+ 	garp_buffer = (char *)MALLOC(sizeof(arphdr_t) + ETHER_HDR_LEN);
+ 
+ 	/* Create the socket descriptor */
+-	garp_fd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_RARP));
++	garp_fd = socket(PF_PACKET, SOCK_RAW | SOCK_CLOEXEC, htons(ETH_P_RARP));
+ 
+ 	if (garp_fd > 0)
+ 		log_message(LOG_INFO, "Registering gratuitous ARP shared channel");
+diff --git a/keepalived/vrrp/vrrp_if.c b/keepalived/vrrp/vrrp_if.c
+index 4bb2356..3b3209d 100644
+--- a/keepalived/vrrp/vrrp_if.c
++++ b/keepalived/vrrp/vrrp_if.c
+@@ -190,7 +190,7 @@ if_mii_probe(const char *ifname)
+ {
+ 	uint16_t *data = (uint16_t *) (&ifr.ifr_data);
+ 	int phy_id;
+-	int fd = socket(AF_INET, SOCK_DGRAM, 0);
++	int fd = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+ 	int status = 0;
+ 
+ 	if (fd < 0)
+@@ -239,7 +239,7 @@ if_ethtool_status(const int fd)
+ int
+ if_ethtool_probe(const char *ifname)
+ {
+-	int fd = socket(AF_INET, SOCK_DGRAM, 0);
++	int fd = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+ 	int status = 0;
+ 
+ 	if (fd < 0)
+@@ -255,7 +255,7 @@ if_ethtool_probe(const char *ifname)
+ void
+ if_ioctl_flags(interface_t * ifp)
+ {
+-	int fd = socket(AF_INET, SOCK_DGRAM, 0);
++	int fd = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+ 
+ 	if (fd < 0)
+ 		return;
+diff --git a/keepalived/vrrp/vrrp_ndisc.c b/keepalived/vrrp/vrrp_ndisc.c
+index 1399095..84e77be 100644
+--- a/keepalived/vrrp/vrrp_ndisc.c
++++ b/keepalived/vrrp/vrrp_ndisc.c
+@@ -187,7 +187,7 @@ ndisc_init(void)
+ 				       sizeof(struct ndhdr) + sizeof(struct nd_opt_hdr) + ETH_ALEN);
+ 
+ 	/* Create the socket descriptor */
+-	ndisc_fd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_IPV6));
++	ndisc_fd = socket(PF_PACKET, SOCK_RAW | SOCK_CLOEXEC, htons(ETH_P_IPV6));
+ }
+ 
+ void
+diff --git a/keepalived/vrrp/vrrp_netlink.c b/keepalived/vrrp/vrrp_netlink.c
+index d7adffa..f73810e 100644
+--- a/keepalived/vrrp/vrrp_netlink.c
++++ b/keepalived/vrrp/vrrp_netlink.c
+@@ -56,7 +56,7 @@ netlink_socket(nl_handle_t *nl, unsigned long groups)
+ 
+ 	memset(nl, 0, sizeof (*nl));
+ 
+-	nl->fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
++	nl->fd = socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
+ 	if (nl->fd < 0) {
+ 		log_message(LOG_INFO, "Netlink: Cannot open netlink socket : (%s)",
+ 		       strerror(errno));
+diff --git a/keepalived/vrrp/vrrp_scheduler.c b/keepalived/vrrp/vrrp_scheduler.c
+index 10d9539..05dd1d8 100644
+--- a/keepalived/vrrp/vrrp_scheduler.c
++++ b/keepalived/vrrp/vrrp_scheduler.c
+@@ -983,7 +983,6 @@ vrrp_script_thread(thread_t * thread)
+ 
+ 	/* Child part */
+ 	signal_handler_destroy();
+-	closeall(0);
+ 	open("/dev/null", O_RDWR);
+ 	ret = dup(0);
+ 	if (ret < 0) {
+diff --git a/lib/notify.c b/lib/notify.c
+index 80cc91e..188423d 100644
+--- a/lib/notify.c
++++ b/lib/notify.c
+@@ -48,15 +48,6 @@ system_call(char *cmdline)
+ 	return retval;
+ }
+ 
+-/* Close all FDs >= a specified value */
+-void
+-closeall(int fd)
+-{
+-	int fdlimit = sysconf(_SC_OPEN_MAX);
+-	while (fd < fdlimit)
+-		close(fd++);
+-}
+-
+ /* Execute external script/program */
+ int
+ notify_exec(char *cmd)
+@@ -77,7 +68,6 @@ notify_exec(char *cmd)
+ 		return 0;
+ 
+ 	signal_handler_destroy();
+-	closeall(0);
+ 
+ 	open("/dev/null", O_RDWR);
+ 
+diff --git a/lib/notify.h b/lib/notify.h
+index a17cb75..9b81da1 100644
+--- a/lib/notify.h
++++ b/lib/notify.h
+@@ -25,7 +25,6 @@
+ 
+ /* system includes */
+ extern int system_call(char *cmdline);
+-extern void closeall(int fd);
+ extern int notify_exec(char *cmd);
+ 
+ #endif
+diff --git a/lib/signals.c b/lib/signals.c
+index 983c71d..5eb1ee3 100644
+--- a/lib/signals.c
++++ b/lib/signals.c
+@@ -125,12 +125,21 @@ signal_ignore(int signo)
+ void
+ signal_handler_init(void)
+ {
+-	int n = pipe(signal_pipe);
+-	assert(!n);
++	int n;
+ 
++#ifdef HAVE_PIPE2
++	n = pipe2(signal_pipe, O_CLOEXEC | O_NONBLOCK);
++#else
++	n = pipe(signal_pipe);
++	
+ 	fcntl(signal_pipe[0], F_SETFL, O_NONBLOCK | fcntl(signal_pipe[0], F_GETFL));
+ 	fcntl(signal_pipe[1], F_SETFL, O_NONBLOCK | fcntl(signal_pipe[1], F_GETFL));
+-
++	
++	fcntl(signal_pipe[0], F_SETFD, FD_CLOEXEC | fcntl(signal_pipe[0], F_GETFD));
++	fcntl(signal_pipe[1], F_SETFD, FD_CLOEXEC | fcntl(signal_pipe[1], F_GETFD));
++#endif
++	assert(!n);
++	
+ 	signal_SIGHUP_handler = NULL;
+ 	signal_SIGINT_handler = NULL;
+ 	signal_SIGTERM_handler = NULL;
+@@ -172,10 +181,6 @@ void
+ signal_handler_destroy(void)
+ {
+ 	signal_wait_handlers();
+-	close(signal_pipe[1]);
+-	close(signal_pipe[0]);
+-	signal_pipe[1] = -1;
+-	signal_pipe[0] = -1;
+ }	
+ 
+ int
