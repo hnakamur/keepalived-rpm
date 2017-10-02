@@ -8,7 +8,7 @@
 
 Name: keepalived
 Summary: High Availability monitor built upon LVS, VRRP and service pollers
-Version: 1.3.6
+Version: 1.3.7
 Release: 1%{?dist}
 License: GPLv2+
 URL: http://www.keepalived.org/
@@ -63,6 +63,7 @@ rm -rf %{buildroot}
 make install DESTDIR=%{buildroot}
 rm -rf %{buildroot}%{_initrddir}/
 rm -rf %{buildroot}%{_sysconfdir}/keepalived/samples/
+rm -rf %{buildroot}%{_defaultdocdir}/keepalived/
 %{__install} -p -D -m 0644 %{SOURCE1} %{buildroot}%{_unitdir}/keepalived.service
 mkdir -p %{buildroot}%{_libexecdir}/keepalived
 
@@ -83,7 +84,7 @@ rm -rf %{buildroot}
 %attr(0755,root,root) %{_sbindir}/keepalived
 %config(noreplace) %attr(0644,root,root) %{_sysconfdir}/sysconfig/keepalived
 %config(noreplace) %attr(0644,root,root) %{_sysconfdir}/keepalived/keepalived.conf
-%doc AUTHOR ChangeLog CONTRIBUTORS COPYING README.md TODO
+%doc AUTHOR ChangeLog CONTRIBUTORS COPYING README README.md TODO
 %doc doc/keepalived.conf.SYNOPSIS doc/samples/keepalived.conf.*
 %dir %{_sysconfdir}/keepalived/
 %dir %{_libexecdir}/keepalived/
@@ -99,6 +100,9 @@ rm -rf %{buildroot}
 %{_mandir}/man8/keepalived.8*
 
 %changelog
+* Mon Oct 02 2017 Hiroaki Nakamura <hnakamur@gmail.com> - 1.3.7-1
+- Update to 1.3.7
+
 * Tue Sep 12 2017 Hiroaki Nakamura <hnakamur@gmail.com> - 1.3.6-1
 - Update to 1.3.6
 
