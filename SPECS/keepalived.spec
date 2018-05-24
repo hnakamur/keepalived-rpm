@@ -8,7 +8,7 @@
 
 Name: keepalived
 Summary: High Availability monitor built upon LVS, VRRP and service pollers
-Version: 1.4.3
+Version: 1.4.4
 Release: 1%{?dist}
 License: GPLv2+
 URL: http://www.keepalived.org/
@@ -16,16 +16,29 @@ Group: System Environment/Daemons
 
 Source0: http://www.keepalived.org/software/keepalived-%{version}.tar.gz
 Source1: keepalived.service
+Source2: keepalived.init
 
+# distribution specific definitions
+%define use_systemd (0%{?fedora} && 0%{?fedora} >= 18) || (0%{?rhel} && 0%{?rhel} >= 7) || (0%{?suse_version} == 1315)
+
+%if %{use_systemd}
 Requires(post): systemd
 Requires(preun): systemd
 Requires(postun): systemd
+%else
+Requires(post): /sbin/chkconfig
+Requires(preun): /sbin/chkconfig
+Requires(preun): /sbin/service
+Requires(postun): /sbin/service
+%endif
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 %if %{with snmp}
 BuildRequires: net-snmp-devel
 %endif
+%if %{use_systemd}
 BuildRequires: systemd-units
+%endif
 BuildRequires: openssl-devel
 BuildRequires: libnl3-devel
 BuildRequires: ipset-devel
@@ -61,23 +74,45 @@ infrastructures.
 %install
 rm -rf %{buildroot}
 make install DESTDIR=%{buildroot}
-rm -rf %{buildroot}%{_initrddir}/
 rm -rf %{buildroot}%{_sysconfdir}/keepalived/samples/
 rm -rf %{buildroot}%{_defaultdocdir}/keepalived/
+%if %{use_systemd}
+rm -rf %{buildroot}%{_initrddir}/
 %{__install} -p -D -m 0644 %{SOURCE1} %{buildroot}%{_unitdir}/keepalived.service
+%else
+rm %{buildroot}%{_sysconfdir}/init/keepalived.conf
+%{__install} -p -D -m 0755 %{SOURCE2} %{buildroot}%{_initrddir}/keepalived
+%endif
 mkdir -p %{buildroot}%{_libexecdir}/keepalived
 
 %clean
 rm -rf %{buildroot}
 
 %post
+%if %{use_systemd}
 %systemd_post keepalived.service
+%else
+/sbin/chkconfig --add keepalived
+%endif
 
 %preun
+%if %{use_systemd}
 %systemd_preun keepalived.service
+%else
+if [ "$1" -eq 0 ]; then
+    /sbin/service keepalived stop >/dev/null 2>&1
+    /sbin/chkconfig --del keepalived
+fi
+%endif
 
 %postun
+%if %{use_systemd}
 %systemd_postun_with_restart keepalived.service
+%else
+if [ "$1" -eq 1 ]; then
+    /sbin/service keepalived condrestart >/dev/null 2>&1 || :
+fi
+%endif
 
 %files
 %defattr(-,root,root,-)
@@ -94,12 +129,20 @@ rm -rf %{buildroot}
 %{_datadir}/snmp/mibs/VRRPv3-MIB.txt
 %endif
 %{_bindir}/genhash
+%if %{use_systemd}
 %{_unitdir}/keepalived.service
+%else
+%{_initrddir}/keepalived
+%endif
 %{_mandir}/man1/genhash.1*
 %{_mandir}/man5/keepalived.conf.5*
 %{_mandir}/man8/keepalived.8*
 
 %changelog
+* Thu May 24 2018 Hiroaki Nakamura <hnakamur@gmail.com> - 1.4.4-1
+- Update to 1.4.4
+- Support CentOS 6 as well as CentOS 7
+
 * Tue Apr 17 2018 Hiroaki Nakamura <hnakamur@gmail.com> - 1.4.3-1
 - Update to 1.4.3
 
