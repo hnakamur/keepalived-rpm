@@ -8,7 +8,7 @@
 
 Name: keepalived
 Summary: High Availability monitor built upon LVS, VRRP and service pollers
-Version: 1.4.4
+Version: 2.0.0
 Release: 1%{?dist}
 License: GPLv2+
 URL: http://www.keepalived.org/
@@ -139,6 +139,9 @@ fi
 %{_mandir}/man8/keepalived.8*
 
 %changelog
+* Mon Jun 04 2018 Hiroaki Nakamura <hnakamur@gmail.com> - 2.0.0-1
+- Update to 2.0.0
+
 * Thu May 24 2018 Hiroaki Nakamura <hnakamur@gmail.com> - 1.4.4-1
 - Update to 1.4.4
 - Support CentOS 6 as well as CentOS 7
