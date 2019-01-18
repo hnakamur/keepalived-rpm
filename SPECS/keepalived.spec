@@ -3,6 +3,11 @@
 %bcond_without sha1
 %bcond_with profile
 %bcond_with debug
+%if 0%{?rhel} && 0%{?rhel} <= 6
+%bcond_with nftables
+%else
+%bcond_without nftables
+%endif
 
 %global _hardened_build 1
 
@@ -68,7 +73,8 @@ infrastructures.
     %{?with_profile:--enable-profile} \
     %{!?with_vrrp:--disable-vrrp} \
     %{?with_snmp:--enable-snmp --enable-snmp-rfc} \
-    %{?with_sha1:--enable-sha1}
+    %{?with_sha1:--enable-sha1} \
+    %{!?with_nftables:--disable-nftables}
 %{__make} %{?_smp_mflags} STRIP=/bin/true
 
 %install
