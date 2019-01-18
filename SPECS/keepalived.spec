@@ -3,12 +3,19 @@
 %bcond_without sha1
 %bcond_with profile
 %bcond_with debug
+%if 0%{?rhel} && 0%{?rhel} <= 6
+%bcond_with nftables
+%bcond_with track_process
+%else
+%bcond_without nftables
+%bcond_without track_process
+%endif
 
 %global _hardened_build 1
 
 Name: keepalived
 Summary: High Availability monitor built upon LVS, VRRP and service pollers
-Version: 2.0.4
+Version: 2.0.11
 Release: 1%{?dist}
 License: GPLv2+
 URL: http://www.keepalived.org/
@@ -17,6 +24,7 @@ Group: System Environment/Daemons
 Source0: http://www.keepalived.org/software/keepalived-%{version}.tar.gz
 Source1: keepalived.service
 Source2: keepalived.init
+Patch1: keepalived-2.0.11-add-option-to-disable-track-process.patch
 
 # distribution specific definitions
 %define use_systemd (0%{?fedora} && 0%{?fedora} >= 18) || (0%{?rhel} && 0%{?rhel} >= 7) || (0%{?suse_version} == 1315)
@@ -45,6 +53,10 @@ BuildRequires: ipset-devel
 BuildRequires: iptables-devel
 BuildRequires: libnfnetlink-devel
 
+%if (0%{?rhel} && 0%{?rhel} >= 7)
+Requires: ipset-libs
+%endif
+
 %description
 Keepalived provides simple and robust facilities for load balancing
 and high availability to Linux system and Linux based infrastructures.
@@ -61,6 +73,7 @@ infrastructures.
 
 %prep
 %setup -q
+%patch1 -p1
 
 %build
 %configure \
@@ -68,7 +81,9 @@ infrastructures.
     %{?with_profile:--enable-profile} \
     %{!?with_vrrp:--disable-vrrp} \
     %{?with_snmp:--enable-snmp --enable-snmp-rfc} \
-    %{?with_sha1:--enable-sha1}
+    %{?with_sha1:--enable-sha1} \
+    %{!?with_nftables:--disable-nftables} \
+    %{!?with_track_process:--disable-track-process}
 %{__make} %{?_smp_mflags} STRIP=/bin/true
 
 %install
@@ -139,6 +154,9 @@ fi
 %{_mandir}/man8/keepalived.8*
 
 %changelog
+* Fri Jan 18 2019 Hiroaki Nakamura <hnakamur@gmail.com> - 2.0.11-1
+- Update to 2.0.11
+
 * Tue Jun 19 2018 Hiroaki Nakamura <hnakamur@gmail.com> - 2.0.4-1
 - Update to 2.0.4
 
