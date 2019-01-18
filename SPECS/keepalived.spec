@@ -53,6 +53,10 @@ BuildRequires: ipset-devel
 BuildRequires: iptables-devel
 BuildRequires: libnfnetlink-devel
 
+%if (0%{?rhel} && 0%{?rhel} >= 7)
+Requires: ipset-libs
+%endif
+
 %description
 Keepalived provides simple and robust facilities for load balancing
 and high availability to Linux system and Linux based infrastructures.
