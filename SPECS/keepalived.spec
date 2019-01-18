@@ -5,8 +5,10 @@
 %bcond_with debug
 %if 0%{?rhel} && 0%{?rhel} <= 6
 %bcond_with nftables
+%bcond_with track_process
 %else
 %bcond_without nftables
+%bcond_without track_process
 %endif
 
 %global _hardened_build 1
@@ -22,6 +24,7 @@ Group: System Environment/Daemons
 Source0: http://www.keepalived.org/software/keepalived-%{version}.tar.gz
 Source1: keepalived.service
 Source2: keepalived.init
+Patch1: keepalived-2.0.11-add-option-to-disable-track-process.patch
 
 # distribution specific definitions
 %define use_systemd (0%{?fedora} && 0%{?fedora} >= 18) || (0%{?rhel} && 0%{?rhel} >= 7) || (0%{?suse_version} == 1315)
@@ -66,6 +69,7 @@ infrastructures.
 
 %prep
 %setup -q
+%patch1 -p1
 
 %build
 %configure \
@@ -74,7 +78,8 @@ infrastructures.
     %{!?with_vrrp:--disable-vrrp} \
     %{?with_snmp:--enable-snmp --enable-snmp-rfc} \
     %{?with_sha1:--enable-sha1} \
-    %{!?with_nftables:--disable-nftables}
+    %{!?with_nftables:--disable-nftables} \
+    %{!?with_track_process:--disable-track-process}
 %{__make} %{?_smp_mflags} STRIP=/bin/true
 
 %install
