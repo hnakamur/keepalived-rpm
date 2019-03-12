@@ -15,7 +15,7 @@
 
 Name: keepalived
 Summary: High Availability monitor built upon LVS, VRRP and service pollers
-Version: 2.0.11
+Version: 2.0.13
 Release: 1%{?dist}
 License: GPLv2+
 URL: http://www.keepalived.org/
@@ -24,7 +24,6 @@ Group: System Environment/Daemons
 Source0: http://www.keepalived.org/software/keepalived-%{version}.tar.gz
 Source1: keepalived.service
 Source2: keepalived.init
-Patch1: keepalived-2.0.11-add-option-to-disable-track-process.patch
 
 # distribution specific definitions
 %define use_systemd (0%{?fedora} && 0%{?fedora} >= 18) || (0%{?rhel} && 0%{?rhel} >= 7) || (0%{?suse_version} == 1315)
@@ -73,7 +72,6 @@ infrastructures.
 
 %prep
 %setup -q
-%patch1 -p1
 
 %build
 %configure \
@@ -154,6 +152,10 @@ fi
 %{_mandir}/man8/keepalived.8*
 
 %changelog
+* Tue Mar 12 2019 Hiroaki Nakamura <hnakamur@gmail.com> - 2.0.13-1
+- Update to 2.0.13
+- Delete keepalived-2.0.11-add-option-to-disable-track-process.patch
+
 * Fri Jan 18 2019 Hiroaki Nakamura <hnakamur@gmail.com> - 2.0.11-1
 - Update to 2.0.11
 
