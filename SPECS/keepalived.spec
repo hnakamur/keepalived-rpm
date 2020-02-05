@@ -6,9 +6,11 @@
 %if 0%{?rhel} && 0%{?rhel} <= 6
 %bcond_with nftables
 %bcond_with track_process
+%bcond_with libiptc
 %else
 %bcond_without nftables
 %bcond_without track_process
+%bcond_without libiptc
 %endif
 
 %global _hardened_build 1
@@ -16,7 +18,7 @@
 Name: keepalived
 Summary: High Availability monitor built upon LVS, VRRP and service pollers
 Version: 2.0.20
-Release: 1%{?dist}
+Release: 2%{?dist}
 License: GPLv2+
 URL: http://www.keepalived.org/
 Group: System Environment/Daemons
@@ -81,7 +83,8 @@ infrastructures.
     %{?with_snmp:--enable-snmp --enable-snmp-rfc} \
     %{?with_sha1:--enable-sha1} \
     %{!?with_nftables:--disable-nftables} \
-    %{!?with_track_process:--disable-track-process}
+    %{!?with_track_process:--disable-track-process} \
+    %{!?with_libiptc:--disable-libiptc}
 %{__make} %{?_smp_mflags} STRIP=/bin/true
 
 %install
@@ -152,6 +155,9 @@ fi
 %{_mandir}/man8/keepalived.8*
 
 %changelog
+* Wed Feb 05 2020 Hiroaki Nakamura <hnakamur@gmail.com> - 2.0.20-2
+- Disable libiptc on CentOS 6
+
 * Wed Feb 05 2020 Hiroaki Nakamura <hnakamur@gmail.com> - 2.0.20-1
 - Update to 2.0.20
 
