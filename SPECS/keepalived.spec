@@ -15,7 +15,7 @@
 
 Name: keepalived
 Summary: High Availability monitor built upon LVS, VRRP and service pollers
-Version: 2.0.13
+Version: 2.0.20
 Release: 1%{?dist}
 License: GPLv2+
 URL: http://www.keepalived.org/
@@ -152,6 +152,9 @@ fi
 %{_mandir}/man8/keepalived.8*
 
 %changelog
+* Wed Feb 05 2020 Hiroaki Nakamura <hnakamur@gmail.com> - 2.0.20-1
+- Update to 2.0.20
+
 * Tue Mar 12 2019 Hiroaki Nakamura <hnakamur@gmail.com> - 2.0.13-1
 - Update to 2.0.13
 - Delete keepalived-2.0.11-add-option-to-disable-track-process.patch
