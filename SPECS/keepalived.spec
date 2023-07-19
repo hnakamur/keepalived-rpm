@@ -17,7 +17,7 @@
 
 Name: keepalived
 Summary: High Availability monitor built upon LVS, VRRP and service pollers
-Version: 2.1.3
+Version: 2.2.1
 Release: 1%{?dist}
 License: GPLv2+
 URL: http://www.keepalived.org/
@@ -155,6 +155,9 @@ fi
 %{_mandir}/man8/keepalived.8*
 
 %changelog
+* Wed Jul 19 2023 Hiroaki Nakamura <hnakamur@gmail.com> - 2.2.1-1
+- Update to 2.2.1
+
 * Wed Jul 08 2020 Hiroaki Nakamura <hnakamur@gmail.com> - 2.1.3-1
 - Update to 2.1.3
 
